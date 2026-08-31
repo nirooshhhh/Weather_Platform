@@ -1,4 +1,8 @@
 import uuid
+import json
+from urllib.parse import quote
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -7,10 +11,67 @@ from app.database import get_db
 from app.models.report import CitizenReport
 from app.models.event import WeatherEvent
 
+
 router = APIRouter(
     prefix="/api/admin",
     tags=["Admin"],
 )
+
+
+def geocode_location(location: str):
+    """
+    Convert a location such as:
+    'Puttur, Karnataka'
+
+    into:
+    latitude, longitude, city, state
+    """
+
+    url = (
+        "https://nominatim.openstreetmap.org/search"
+        f"?q={quote(location + ', India')}"
+        "&format=json"
+        "&addressdetails=1"
+        "&limit=1"
+    )
+
+    request = Request(
+        url,
+        headers={
+            "User-Agent": "WeatherPulseIndia/1.0"
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+
+        if not data:
+            return None
+
+        result = data[0]
+        address = result.get("address", {})
+
+        city = (
+            address.get("city")
+            or address.get("town")
+            or address.get("village")
+            or address.get("municipality")
+            or address.get("county")
+            or location
+        )
+
+        state = address.get("state") or "Unknown"
+
+        return {
+            "lat": float(result["lat"]),
+            "lng": float(result["lon"]),
+            "city": city,
+            "state": state,
+        }
+
+    except (URLError, HTTPError, TimeoutError, ValueError, KeyError):
+        return None
 
 
 @router.get("/reports")
@@ -66,26 +127,69 @@ def verify_report(
             "status": "verified",
         }
 
-    # Coordinates are required for displaying the event on the map
-    if report.lat is None or report.lng is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot approve report without latitude and longitude",
-        )
+    # ---------------------------------------------------------
+    # STEP 1: Get coordinates
+    # ---------------------------------------------------------
 
-    # Mark citizen report as verified
+    latitude = report.lat
+    longitude = report.lng
+
+    city = report.location
+    state = "Unknown"
+
+    # If GPS coordinates were already supplied, use them.
+    if latitude is not None and longitude is not None:
+
+        # Still try to determine the proper city/state
+        location_data = geocode_location(report.location)
+
+        if location_data:
+            city = location_data["city"]
+            state = location_data["state"]
+
+    # If the citizen manually entered a location,
+    # automatically find its coordinates.
+    else:
+
+        location_data = geocode_location(report.location)
+
+        if not location_data:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Could not find coordinates for '{report.location}'. "
+                    "Please enter a valid city or location in India."
+                ),
+            )
+
+        latitude = location_data["lat"]
+        longitude = location_data["lng"]
+        city = location_data["city"]
+        state = location_data["state"]
+
+        # Save the coordinates back into the citizen report
+        report.lat = latitude
+        report.lng = longitude
+
+    # ---------------------------------------------------------
+    # STEP 2: Verify citizen report
+    # ---------------------------------------------------------
+
     report.status = "verified"
     report.trust_score = max(report.trust_score, 80)
 
-    # Create a WeatherEvent from the approved citizen report
+    # ---------------------------------------------------------
+    # STEP 3: Create WeatherEvent
+    # ---------------------------------------------------------
+
     weather_event = WeatherEvent(
         id=f"evt-{uuid.uuid4().hex[:10]}",
         type=report.type,
-        title=f"{report.type} reported in {report.location}",
-        state="Unknown",
-        city=report.location,
-        lat=report.lat,
-        lng=report.lng,
+        title=f"{report.type} reported in {city}",
+        state=state,
+        city=city,
+        lat=latitude,
+        lng=longitude,
         datetime=report.datetime.isoformat(),
         description=report.description,
         source="Citizen Report",

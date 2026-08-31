@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.event import WeatherEvent
+from app.models.report import CitizenReport
 
 router = APIRouter(
     prefix="/api/dashboard",
@@ -12,17 +13,16 @@ router = APIRouter(
 
 @router.get("/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
+
+    # ---------------------------------------------------------
+    # WEATHER EVENTS
+    # ---------------------------------------------------------
+
     total_events = db.query(WeatherEvent).count()
 
-    verified_reports = (
+    verified_events = (
         db.query(WeatherEvent)
         .filter(WeatherEvent.status == "verified")
-        .count()
-    )
-
-    pending_reports = (
-        db.query(WeatherEvent)
-        .filter(WeatherEvent.status == "pending")
         .count()
     )
 
@@ -32,13 +32,34 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         .count()
     )
 
+    # ---------------------------------------------------------
+    # CITIZEN REPORTS
+    # ---------------------------------------------------------
+
+    pending_reports = (
+        db.query(CitizenReport)
+        .filter(CitizenReport.status == "pending")
+        .count()
+    )
+
+    verified_reports = (
+        db.query(CitizenReport)
+        .filter(CitizenReport.status == "verified")
+        .count()
+    )
+
+    # ---------------------------------------------------------
+    # RETURN DASHBOARD DATA
+    # ---------------------------------------------------------
+
     return {
         "totalEvents": total_events,
         "verifiedReports": verified_reports,
         "pendingReports": pending_reports,
         "highRiskEvents": high_risk_events,
 
-        # These will later be calculated from historical data.
+        # Keep these for the existing frontend.
+        # We can calculate real historical deltas later.
         "totalDelta": 0,
         "verifiedDelta": 0,
         "pendingDelta": 0,

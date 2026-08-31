@@ -94,3 +94,19 @@ export interface PendingReport {
   mlClassification: string
   mediaUrl?: string
 }
+
+export interface WeatherData {
+  id: string
+  city: string
+  state: string
+  lat: number
+  lng: number
+  temperature: number
+  humidity: number
+  windSpeed: number
+  precipitation: number
+  weatherCode: number
+  condition: string
+  updatedAt: string
+  weather: string
+}

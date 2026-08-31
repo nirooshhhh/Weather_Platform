@@ -16,6 +16,7 @@ import type {
   EventDetail,
   PendingReport,
   WeatherEvent,
+  WeatherData,
 } from '@/lib/types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '' // e.g. https://api.weatherpulse.in
@@ -464,6 +465,19 @@ export async function rejectReport(
 
   if (!response.ok) {
     throw new Error('Failed to reject report')
+  }
+
+  return response.json()
+}
+
+/** GET /api/weather */
+export async function getWeather(): Promise<WeatherData[]> {
+  const response = await fetch(`${API_BASE}/api/weather`, {
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch weather data')
   }
 
   return response.json()

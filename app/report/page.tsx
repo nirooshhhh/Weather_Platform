@@ -31,7 +31,7 @@ const [locationLoading, setLocationLoading] = useState(false)
   const [reportId, setReportId] = useState('')
 
   const [error, setError] = useState('')
-  function getMyLocation() {
+async function getMyLocation() {
   if (!navigator.geolocation) {
     setError('Geolocation is not supported by your browser.')
     return
@@ -41,28 +41,87 @@ const [locationLoading, setLocationLoading] = useState(false)
   setLocationLoading(true)
 
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+    async (position) => {
       const { latitude, longitude } = position.coords
 
+      // Always keep the exact GPS coordinates
       setLatitude(latitude)
       setLongitude(longitude)
 
-      setLocation(
-        `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-      )
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+          {
+            headers: {
+              Accept: 'application/json',
+            },
+          }
+        )
 
-      setLocationLoading(false)
+        if (!response.ok) {
+          throw new Error('Reverse geocoding failed')
+        }
+
+        const data = await response.json()
+        const address = data.address || {}
+
+        /*
+         * Nominatim may return:
+         * city
+         * town
+         * municipality
+         * village
+         * suburb
+         * county
+         *
+         * We prefer larger administrative locations
+         * instead of small localities.
+         */
+
+        const city =
+          address.city ||
+          address.town ||
+          address.municipality ||
+          address.city_district ||
+          address.county ||
+          address.village ||
+          ''
+
+        const state = address.state || ''
+
+        if (city && state) {
+          setLocation(`${city}, ${state}`)
+        } else if (state) {
+          setLocation(state)
+        } else {
+          setLocation(
+            `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+          )
+        }
+      } catch (err) {
+        console.error('Reverse geocoding error:', err)
+
+        // GPS coordinates are still valid even if
+        // the address lookup fails.
+        setLocation(
+          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+        )
+      } finally {
+        setLocationLoading(false)
+      }
     },
     (error) => {
-      console.error(error)
+      console.error('Geolocation error:', error)
+
       setError(
         'Unable to get your location. Please allow location access and try again.'
       )
+
       setLocationLoading(false)
     },
     {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 15000,
       maximumAge: 60000,
     }
   )

@@ -8,6 +8,7 @@ from app.routes.alerts import router as alerts_router
 from app.routes.reports import router as reports_router
 from app.routes.admin import router as admin_router
 from app.routes import weather
+from app.routes import alerts
 
 # Import models so SQLAlchemy knows about them
 from app.models import event
@@ -41,6 +42,7 @@ app.include_router(alerts_router)
 app.include_router(reports_router)
 app.include_router(admin_router)
 app.include_router(weather.router)
+app.include_router(alerts.router)
 
 @app.get("/")
 def root():

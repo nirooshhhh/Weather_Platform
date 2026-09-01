@@ -12,9 +12,12 @@ router = APIRouter(
 
 @router.get("")
 def get_alerts(db: Session = Depends(get_db)):
+
     events = (
         db.query(WeatherEvent)
-        .filter(WeatherEvent.status.in_(["high-risk", "verified"]))
+        .filter(
+            WeatherEvent.status.in_(["verified", "high-risk"])
+        )
         .order_by(WeatherEvent.datetime.desc())
         .all()
     )
@@ -22,9 +25,10 @@ def get_alerts(db: Session = Depends(get_db)):
     alerts = []
 
     for event in events:
+
         if event.status == "high-risk":
             severity = "critical"
-        elif event.trust_score >= 80:
+        elif event.trust_score >= 90:
             severity = "severe"
         else:
             severity = "moderate"
@@ -33,7 +37,11 @@ def get_alerts(db: Session = Depends(get_db)):
             "id": f"alt-{event.id}",
             "type": event.type,
             "title": event.title,
-            "location": f"{event.city}, {event.state}",
+            "location": (
+                event.city
+                if event.state.lower() in event.city.lower()
+                else f"{event.city}, {event.state}"
+            ),
             "severity": severity,
             "datetime": event.datetime,
         })

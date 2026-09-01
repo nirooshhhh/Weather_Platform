@@ -388,9 +388,17 @@ export async function getEventById(
 }
 
 /** GET /api/analytics */
+/** GET /api/analytics */
 export async function getAnalytics(): Promise<AnalyticsData> {
-  // return fetch(`${API_BASE}/api/analytics`).then((r) => r.json())
-  return delay(ANALYTICS)
+  const response = await fetch(`${API_BASE}/api/analytics`, {
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch analytics data')
+  }
+
+  return response.json()
 }
 
 /** POST /api/reports */

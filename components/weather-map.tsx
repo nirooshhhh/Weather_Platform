@@ -69,56 +69,61 @@ function markerHtml(event: WeatherEvent): string {
 
 function weatherMarkerHtml(weather: WeatherData): string {
   let icon = '🌤️'
-  let label = 'Weather'
 
   const code = weather.weatherCode
 
   if (code === 0) {
     icon = '☀️'
-    label = 'Clear'
   } else if (code >= 1 && code <= 3) {
     icon = '⛅'
-    label = 'Cloudy'
   } else if (code === 45 || code === 48) {
     icon = '🌫️'
-    label = 'Fog'
   } else if (code >= 51 && code <= 57) {
     icon = '🌦️'
-    label = 'Drizzle'
   } else if (code >= 61 && code <= 67) {
     icon = '🌧️'
-    label = 'Rain'
   } else if (code >= 71 && code <= 77) {
     icon = '❄️'
-    label = 'Snow'
   } else if (code >= 80 && code <= 82) {
     icon = '🌦️'
-    label = 'Rain Showers'
   } else if (code >= 85 && code <= 86) {
     icon = '🌨️'
-    label = 'Snow Showers'
   } else if (code >= 95 && code <= 99) {
     icon = '⛈️'
-    label = 'Thunderstorm'
   }
 
   return `
     <div
-      title="${label}"
       style="
-        width:34px;
-        height:34px;
-        border-radius:9999px;
-        background:white;
-        border:2px solid #3b9dff;
-        box-shadow:0 2px 10px rgba(0,0,0,0.25);
+        width:38px;
+        height:30px;
+        padding:2px 3px;
+        border-radius:8px;
+        background:rgba(255,255,255,0.94);
+        border:1px solid rgba(59,157,255,0.35);
+        box-shadow:0 1px 5px rgba(0,0,0,0.22);
         display:flex;
         align-items:center;
         justify-content:center;
-        font-size:17px;
+        gap:2px;
+        line-height:1;
+        font-family:Arial,sans-serif;
       "
     >
-      ${icon}
+      <span style="font-size:13px;">
+        ${icon}
+      </span>
+
+      <span
+        style="
+          font-size:10px;
+          font-weight:700;
+          color:#111827;
+          white-space:nowrap;
+        "
+      >
+        ${Math.round(weather.temperature)}°
+      </span>
     </div>
   `
 }
@@ -183,20 +188,20 @@ export default function WeatherMap({
   ------------------------------------------------------- */
 
   const weatherIcons = useMemo(
-    () =>
-      Object.fromEntries(
-        weather.map((item) => [
-          item.id,
-          L.divIcon({
-            html: weatherMarkerHtml(item),
-            className: '',
-            iconSize: [34, 34],
-            iconAnchor: [17, 17],
-          }),
-        ]),
-      ),
-    [weather],
-  )
+  () =>
+    Object.fromEntries(
+      weather.map((item) => [
+        item.id,
+        L.divIcon({
+          html: weatherMarkerHtml(item),
+          className: '',
+          iconSize: [38, 30],
+          iconAnchor: [19, 15],
+        }),
+      ]),
+    ),
+  [weather],
+)
 
   const selected =
     events.find((event) => event.id === selectedId) ?? null
@@ -233,7 +238,10 @@ export default function WeatherMap({
           <Popup>
             <div className="min-w-[200px]">
               <h3 className="text-base font-semibold">
-                {item.city}, {item.state}
+                {item.nearestPlace?.city ?? 'Unknown location'}
+                {item.nearestPlace?.state
+                  ? `, ${item.nearestPlace.state}`
+                  : ''}
               </h3>
 
               <p className="mt-1 text-xs text-gray-500">
@@ -266,6 +274,34 @@ export default function WeatherMap({
                   <strong>{item.precipitation} mm</strong>
                 </p>
               </div>
+              <p>
+  🤖 AI Classification:{' '}
+  <strong>{item.classification}</strong>
+</p>
+
+<p>
+  ⚠️ Risk Level:{' '}
+  <strong className={
+    item.risk === 'critical'
+      ? 'text-red-600'
+      : item.risk === 'high'
+        ? 'text-orange-600'
+        : 'text-green-600'
+  }>
+    {item.risk?.toUpperCase()}
+  </strong>
+</p>
+
+<p>
+  🎯 AI Confidence:{' '}
+  <strong>
+    {item.confidence
+      ? `${Math.round(item.confidence * 100)}%`
+      : 'N/A'}
+  </strong>
+</p>
+
+                 
 
               <p className="mt-3 text-[10px] text-gray-400">
                 Updated: {item.updatedAt}

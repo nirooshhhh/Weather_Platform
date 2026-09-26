@@ -99,6 +99,12 @@ export interface WeatherData {
   id: string
   city: string
   state: string
+  nearestPlace?: {
+  city: string
+  state: string
+  lat: number
+  lng: number
+}
   lat: number
   lng: number
   temperature: number
@@ -109,4 +115,7 @@ export interface WeatherData {
   condition: string
   updatedAt: string
   weather: string
+  classification?: string
+  risk?: 'low' | 'high' | 'critical'
+  confidence?: number
 }

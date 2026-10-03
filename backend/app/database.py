@@ -1,7 +1,15 @@
+import os
+
+# Prevent Windows AppLocker / Application Control DLL blocking
+os.environ["DISABLE_SQLALCHEMY_CEXT"] = "1"
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "sqlite:///./weatherpulse.db"
+# Set path relative to the backend directory
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(BASE_DIR, "weatherpulse.db")
+DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(
     DATABASE_URL,
@@ -15,7 +23,6 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
-
 
 def get_db():
     db = SessionLocal()

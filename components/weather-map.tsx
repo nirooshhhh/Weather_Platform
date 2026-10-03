@@ -9,17 +9,26 @@ import {
   useMap,
   Popup,
 } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
 import 'leaflet/dist/leaflet.css'
 
 import { EVENT_CONFIG, STATUS_CONFIG } from '@/lib/event-config'
 import type { WeatherData, WeatherEvent } from '@/lib/types'
 
+// Fix default Leaflet icon paths in Next.js
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
+
 /* =========================================================
-   DISASTER MARKER
+   DISASTER MARKER HTML
 ========================================================= */
 
 function markerHtml(event: WeatherEvent): string {
-  const color = EVENT_CONFIG[event.type].color
+  const color = EVENT_CONFIG[event.type]?.color || '#3b9dff'
   const isHighRisk = event.status === 'high-risk'
 
   const ring =
@@ -64,65 +73,46 @@ function markerHtml(event: WeatherEvent): string {
 }
 
 /* =========================================================
-   WEATHER MARKER
+   WEATHER MARKER HTML
 ========================================================= */
 
 function weatherMarkerHtml(weather: WeatherData): string {
   let icon = '🌤️'
-
   const code = weather.weatherCode
 
-  if (code === 0) {
-    icon = '☀️'
-  } else if (code >= 1 && code <= 3) {
-    icon = '⛅'
-  } else if (code === 45 || code === 48) {
-    icon = '🌫️'
-  } else if (code >= 51 && code <= 57) {
-    icon = '🌦️'
-  } else if (code >= 61 && code <= 67) {
-    icon = '🌧️'
-  } else if (code >= 71 && code <= 77) {
-    icon = '❄️'
-  } else if (code >= 80 && code <= 82) {
-    icon = '🌦️'
-  } else if (code >= 85 && code <= 86) {
-    icon = '🌨️'
-  } else if (code >= 95 && code <= 99) {
-    icon = '⛈️'
-  }
+  if (code === 0) icon = '☀️'
+  else if (code >= 1 && code <= 3) icon = '⛅'
+  else if (code === 45 || code === 48) icon = '🌫️'
+  else if (code >= 51 && code <= 57) icon = '🌦️'
+  else if (code >= 61 && code <= 67) icon = '🌧️'
+  else if (code >= 71 && code <= 77) icon = '❄️'
+  else if (code >= 80 && code <= 82) icon = '🌦️'
+  else if (code >= 85 && code <= 86) icon = '🌨️'
+  else if (code >= 95 && code <= 99) icon = '⛈️'
+
+  const tempVal = weather.temperature !== undefined ? Math.round(weather.temperature) : 'N/A'
 
   return `
     <div
       style="
-        width:38px;
-        height:30px;
-        padding:2px 3px;
+        width:42px;
+        height:28px;
+        padding:2px 4px;
         border-radius:8px;
-        background:rgba(255,255,255,0.94);
-        border:1px solid rgba(59,157,255,0.35);
-        box-shadow:0 1px 5px rgba(0,0,0,0.22);
+        background:rgba(255,255,255,0.95);
+        border:1px solid rgba(59,157,255,0.4);
+        box-shadow:0 2px 6px rgba(0,0,0,0.25);
         display:flex;
         align-items:center;
         justify-content:center;
-        gap:2px;
+        gap:3px;
         line-height:1;
-        font-family:Arial,sans-serif;
+        font-family:sans-serif;
       "
     >
-      <span style="font-size:13px;">
-        ${icon}
-      </span>
-
-      <span
-        style="
-          font-size:10px;
-          font-weight:700;
-          color:#111827;
-          white-space:nowrap;
-        "
-      >
-        ${Math.round(weather.temperature)}°
+      <span style="font-size:12px;">${icon}</span>
+      <span style="font-size:11px;font-weight:700;color:#111827;white-space:nowrap;">
+        ${tempVal}°
       </span>
     </div>
   `
@@ -132,79 +122,85 @@ function weatherMarkerHtml(weather: WeatherData): string {
    FLY TO SELECTED DISASTER
 ========================================================= */
 
-function FlyToSelection({
-  event,
-}: {
-  event: WeatherEvent | null
-}) {
+function FlyToSelection({ event }: { event: WeatherEvent | null }) {
   const map = useMap()
 
   if (event) {
-    map.flyTo([event.lat, event.lng], 6, {
-      duration: 0.8,
-    })
+    const lat = (event as any).lat ?? (event as any).latitude
+    const lng = (event as any).lng ?? (event as any).longitude
+
+    if (lat !== undefined && lng !== undefined) {
+      map.flyTo([lat, lng], 6, { duration: 0.8 })
+    }
   }
 
   return null
 }
 
 /* =========================================================
-   WEATHER MAP
+   WEATHER MAP COMPONENT
 ========================================================= */
 
 export default function WeatherMap({
-  events,
-  weather,
+  events = [],
+  weather = [],
   selectedId,
   onSelect,
 }: {
-  events: WeatherEvent[]
-  weather: WeatherData[]
+  events?: WeatherEvent[]
+  weather?: WeatherData[]
   selectedId?: string | null
-  onSelect: (event: WeatherEvent) => void
+  onSelect?: (event: WeatherEvent) => void
 }) {
-  /* -------------------------------------------------------
-     Disaster marker icons
-  ------------------------------------------------------- */
+  // Safely filter disaster events that contain valid coordinates
+  const validEvents = useMemo(() => {
+    return (events || []).filter((event) => {
+      const lat = (event as any)?.lat ?? (event as any)?.latitude
+      const lng = (event as any)?.lng ?? (event as any)?.longitude
+      return typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng)
+    })
+  }, [events])
 
-  const icons = useMemo(
-    () =>
-      Object.fromEntries(
-        events.map((event) => [
-          event.id,
-          L.divIcon({
-            html: markerHtml(event),
-            className: '',
-            iconSize: [22, 22],
-            iconAnchor: [11, 11],
-          }),
-        ]),
-      ),
-    [events],
-  )
+  // Safely filter weather items that contain valid coordinates
+  const validWeather = useMemo(() => {
+    return (weather || []).filter((item) => {
+      const lat = item?.lat
+      const lng = item?.lng
+      return typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng)
+    })
+  }, [weather])
 
-  /* -------------------------------------------------------
-     Weather marker icons
-  ------------------------------------------------------- */
+  /* Disaster marker icons */
+  const icons = useMemo(() => {
+    return Object.fromEntries(
+      validEvents.map((event) => [
+        event.id,
+        L.divIcon({
+          html: markerHtml(event),
+          className: '',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+      ])
+    )
+  }, [validEvents])
 
-  const weatherIcons = useMemo(
-  () =>
-    Object.fromEntries(
-      weather.map((item) => [
+  /* Weather marker icons */
+  const weatherIcons = useMemo(() => {
+    return Object.fromEntries(
+      validWeather.map((item) => [
         item.id,
         L.divIcon({
           html: weatherMarkerHtml(item),
           className: '',
-          iconSize: [38, 30],
-          iconAnchor: [19, 15],
+          iconSize: [42, 28],
+          iconAnchor: [21, 14],
         }),
-      ]),
-    ),
-  [weather],
-)
+      ])
+    )
+  }, [validWeather])
 
-  const selected =
-    events.find((event) => event.id === selectedId) ?? null
+  const selected = validEvents.find((event) => event.id === selectedId) ?? null
 
   return (
     <MapContainer
@@ -216,119 +212,85 @@ export default function WeatherMap({
       className="h-full w-full"
       style={{ background: 'var(--background)' }}
     >
-      {/* =====================================================
-          BASE MAP
-      ===================================================== */}
-
       <TileLayer
         attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* =====================================================
-          WEATHER MARKERS
-      ===================================================== */}
+      {/* Clustered Weather Markers */}
+      <MarkerClusterGroup
+        chunkedLoading
+        maxClusterRadius={40}
+        spiderfyOnMaxZoom={true}
+        showCoverageOnHover={false}
+      >
+        {validWeather.map((item) => (
+          <Marker
+            key={`weather-${item.id}`}
+            position={[item.lat, item.lng]}
+            icon={weatherIcons[item.id]}
+          >
+            <Popup>
+              <div className="min-w-[210px] p-1 text-slate-800">
+                <h3 className="text-base font-semibold">
+                  {item.nearestPlace?.city ?? item.city ?? 'Unknown location'}
+                  {item.nearestPlace?.state || item.state ? `, ${item.nearestPlace?.state || item.state}` : ''}
+                </h3>
 
-      {weather.map((item) => (
-        <Marker
-          key={`weather-${item.id}`}
-          position={[item.lat, item.lng]}
-          icon={weatherIcons[item.id]}
-        >
-          <Popup>
-            <div className="min-w-[200px]">
-              <h3 className="text-base font-semibold">
-                {item.nearestPlace?.city ?? 'Unknown location'}
-                {item.nearestPlace?.state
-                  ? `, ${item.nearestPlace.state}`
-                  : ''}
-              </h3>
+                <p className="mt-0.5 text-xs text-slate-500">Current Weather</p>
 
-              <p className="mt-1 text-xs text-gray-500">
-                Current Weather
-              </p>
+                <div className="mt-2 space-y-1 text-xs text-slate-700">
+                  <p>🌡️ Temperature: <strong>{item.temperature}°C</strong></p>
+                  <p>💧 Humidity: <strong>{item.humidity}%</strong></p>
+                  <p>🌤️ Condition: <strong>{item.condition || item.weather}</strong></p>
+                  <p>💨 Wind: <strong>{item.windSpeed} km/h</strong></p>
+                  <p>🌧️ Precipitation: <strong>{item.precipitation} mm</strong></p>
+                </div>
 
-              <div className="mt-3 space-y-1.5 text-sm">
-                <p>
-                  🌡️ Temperature:{' '}
-                  <strong>{item.temperature}°C</strong>
-                </p>
+                <div className="mt-3 pt-2 border-t border-slate-200 text-xs space-y-1">
+                  <p>🤖 AI Classification: <strong>{item.classification || 'Normal Weather'}</strong></p>
+                  <p>
+                    ⚠️ Risk Level:{' '}
+                    <strong
+                      className={
+                        item.risk === 'critical'
+                          ? 'text-red-600 font-bold'
+                          : item.risk === 'high'
+                          ? 'text-orange-600 font-bold'
+                          : 'text-emerald-600 font-bold'
+                      }
+                    >
+                      {(item.risk || 'low').toUpperCase()}
+                    </strong>
+                  </p>
+                  <p>🎯 AI Confidence: <strong>{item.confidence ? `${Math.round(item.confidence * 100)}%` : '90%'}</strong></p>
+                </div>
 
-                <p>
-                  💧 Humidity:{' '}
-                  <strong>{item.humidity}%</strong>
-                </p>
-
-                <p>
-                  🌤️ Condition:{' '}
-                  <strong>{item.condition || item.weather}</strong>
-                </p>
-
-                <p>
-                  💨 Wind:{' '}
-                  <strong>{item.windSpeed} km/h</strong>
-                </p>
-
-                <p>
-                  🌧️ Precipitation:{' '}
-                  <strong>{item.precipitation} mm</strong>
+                <p className="mt-2 text-[10px] text-slate-400">
+                  Updated: {item.updatedAt}
                 </p>
               </div>
-              <p>
-  🤖 AI Classification:{' '}
-  <strong>{item.classification}</strong>
-</p>
+            </Popup>
+          </Marker>
+        ))}
+      </MarkerClusterGroup>
 
-<p>
-  ⚠️ Risk Level:{' '}
-  <strong className={
-    item.risk === 'critical'
-      ? 'text-red-600'
-      : item.risk === 'high'
-        ? 'text-orange-600'
-        : 'text-green-600'
-  }>
-    {item.risk?.toUpperCase()}
-  </strong>
-</p>
+      {/* Disaster Event Markers */}
+      {validEvents.map((event) => {
+        const lat = (event as any).lat ?? (event as any).latitude
+        const lng = (event as any).lng ?? (event as any).longitude
 
-<p>
-  🎯 AI Confidence:{' '}
-  <strong>
-    {item.confidence
-      ? `${Math.round(item.confidence * 100)}%`
-      : 'N/A'}
-  </strong>
-</p>
-
-                 
-
-              <p className="mt-3 text-[10px] text-gray-400">
-                Updated: {item.updatedAt}
-              </p>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-
-      {/* =====================================================
-          DISASTER EVENT MARKERS
-      ===================================================== */}
-
-      {events.map((event) => (
-        <Marker
-          key={`event-${event.id}`}
-          position={[event.lat, event.lng]}
-          icon={icons[event.id]}
-          eventHandlers={{
-            click: () => onSelect(event),
-          }}
-        />
-      ))}
-
-      {/* =====================================================
-          FLY TO SELECTED EVENT
-      ===================================================== */}
+        return (
+          <Marker
+            key={`event-${event.id}`}
+            position={[lat, lng]}
+            icon={icons[event.id]}
+            eventHandlers={{
+              click: () => onSelect && onSelect(event),
+            }}
+          />
+        )
+      })}
 
       <FlyToSelection event={selected} />
     </MapContainer>

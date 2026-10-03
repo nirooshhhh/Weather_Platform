@@ -60,11 +60,12 @@ export function FilterBar({
       </div>
 
       <select
-        aria-label="Filter by state"
-        className={selectClass}
-        value={filters.state}
-        onChange={(e) => set('state', e.target.value)}
-      >
+  suppressHydrationWarning
+  aria-label="Filter by state"
+  className={selectClass}
+  value={filters.state}
+  onChange={(e) => set('state', e.target.value)}
+>
         {INDIAN_STATES.map((s) => (
           <option key={s} value={s}>
             {s}
@@ -73,11 +74,12 @@ export function FilterBar({
       </select>
 
       <select
-        aria-label="Filter by event type"
-        className={selectClass}
-        value={filters.type}
-        onChange={(e) => set('type', e.target.value as Filters['type'])}
-      >
+  suppressHydrationWarning
+  aria-label="Filter by event type"
+  className={selectClass}
+  value={filters.type}
+  onChange={(e) => set('type', e.target.value as Filters['type'])}
+>
         <option value="all">All Event Types</option>
         {EVENT_TYPES.map((t) => (
           <option key={t} value={t}>
@@ -87,11 +89,12 @@ export function FilterBar({
       </select>
 
       <select
-        aria-label="Filter by verification status"
-        className={selectClass}
-        value={filters.status}
-        onChange={(e) => set('status', e.target.value as Filters['status'])}
-      >
+  suppressHydrationWarning
+  aria-label="Filter by verification status"
+  className={selectClass}
+  value={filters.status}
+  onChange={(e) => set('status', e.target.value as Filters['status'])}
+>
         <option value="all">All Statuses</option>
         <option value="verified">Verified</option>
         <option value="pending">Pending</option>

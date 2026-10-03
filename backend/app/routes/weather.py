@@ -4,6 +4,7 @@ from pathlib import Path
 from shapely.geometry import Point, shape
 import json
 import time
+from app.services.ml_classifier import predict_disaster_risk
 
 from ml.risk_classifier import classify_weather_risk
 
@@ -12,6 +13,23 @@ router = APIRouter(
     tags=["Weather"],
 )
 
+@router.post("/predict")
+def predict_weather_risk(data: dict):
+    temp = data.get("temperature", 25.0)
+    humidity = data.get("humidity", 60.0)
+    precip = data.get("precipitation", 0.0)
+    wind = data.get("wind_speed", 10.0)
+    code = data.get("weather_code", 0)
+
+    result = predict_disaster_risk(
+        temperature=temp,
+        humidity=humidity,
+        precipitation=precip,
+        wind_speed=wind,
+        weather_code=code
+    )
+
+    return result
 # ============================================================
 # INDIA BOUNDARY
 # ============================================================

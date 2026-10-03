@@ -5,12 +5,13 @@ from app.database import Base, engine
 from app.routes.events import router as events_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.alerts import router as alerts_router
-from app.routes.reports import router as reports_router
+from app.routes.report import router as reports_router
 from app.routes.admin import router as admin_router
 from app.routes import weather
 from app.routes.analytics import router as analytics_router
 
 # Import models so SQLAlchemy knows about them
+from app.models import historical
 from app.models import event
 from app.models import report
 
@@ -38,7 +39,7 @@ app.add_middleware(
 
 app.include_router(events_router)
 app.include_router(dashboard_router)
-app.include_router(reports_router)
+app.include_router(reports_router, prefix="/api/reports", tags=["Reports"])
 app.include_router(admin_router)
 app.include_router(weather.router)
 app.include_router(alerts_router)
